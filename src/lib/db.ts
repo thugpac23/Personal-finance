@@ -1,7 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 
 // Lazy: neon() is only called at request time, not at module initialization.
-// This prevents build-time failures when DATABASE_URL is not in the build env.
+// This prevents build-time failures when DATABASE_URL is absent from the build env.
 let _sql: ReturnType<typeof neon> | null = null;
 
 function connect() {
@@ -9,17 +9,14 @@ function connect() {
   return _sql;
 }
 
-type Sql = ReturnType<typeof neon>;
+type SqlFn = (strings: TemplateStringsArray | string, ...values: unknown[]) => Promise<unknown[]>;
 
-const sql: Sql = new Proxy((() => {}) as unknown as Sql, {
-  apply(_t, _this, args) {
-    return Reflect.apply(connect() as unknown as (...a: unknown[]) => unknown, connect(), args);
-  },
-  get(_t, prop) {
-    const db = connect();
-    const val = (db as unknown as Record<string | symbol, unknown>)[prop];
-    return typeof val === "function" ? (val as (...a: unknown[]) => unknown).bind(db) : val;
-  },
-});
+const sql: SqlFn = (strings, ...values) => {
+  const db = connect();
+  if (typeof strings === "string") {
+    return db(strings, values[0] as unknown[]) as Promise<unknown[]>;
+  }
+  return db(strings as TemplateStringsArray, ...values) as Promise<unknown[]>;
+};
 
 export default sql;
