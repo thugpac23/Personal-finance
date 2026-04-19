@@ -12,6 +12,9 @@ out/
 .env.local
 .env.*.local
 
+# TypeScript
+*.tsbuildinfo
+
 # Misc
 .DS_Store
 *.pem
