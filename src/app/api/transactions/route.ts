@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { withAuth } from "@/lib/utils/api";
 import { transactionSchema, transactionFiltersSchema } from "@/lib/validations";
 import sql from "@/lib/db";

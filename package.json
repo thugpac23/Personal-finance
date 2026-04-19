@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "next build && npx @cloudflare/next-on-pages",
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
@@ -38,7 +38,8 @@
     "zustand": "^5.0.0"
   },
   "devDependencies": {
-    "@netlify/plugin-nextjs": "^5.10.1",
+    "@cloudflare/next-on-pages": "^1.13.12",
+    "wrangler": "^3.99.0",
     "@types/node": "^22.0.0",
     "@types/node-cron": "^3.0.11",
     "@types/react": "^18.3.11",

@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { NextResponse } from "next/server";
 import { verifyWorkerSecret } from "@/lib/utils/api";
 import sql from "@/lib/db";

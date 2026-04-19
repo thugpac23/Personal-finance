@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { withAuth } from "@/lib/utils/api";
 import { recurringSchema } from "@/lib/validations";
 import sql from "@/lib/db";
