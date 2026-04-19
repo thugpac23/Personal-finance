@@ -1,7 +1,5 @@
 import { neon } from "@neondatabase/serverless";
 
-// Lazy: neon() is only called at request time, not at module initialization.
-// This prevents build-time failures when DATABASE_URL is absent from the build env.
 let _sql: ReturnType<typeof neon> | null = null;
 
 function connect() {

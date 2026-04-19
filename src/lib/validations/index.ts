@@ -69,6 +69,6 @@ export type TransactionInput      = z.infer<typeof transactionSchema>;
 export type RecurringInput        = z.infer<typeof recurringSchema>;
 export type BudgetInput           = z.infer<typeof budgetSchema>;
 export type GoalInput             = z.infer<typeof goalSchema>;
+export type CategoryInput         = z.infer<typeof categorySchema>;
 export type ProfileUpdateInput    = z.infer<typeof profileUpdateSchema>;
-export type CategoryInput            = z.infer<typeof categorySchema>;
 export type TransactionFiltersInput = z.infer<typeof transactionFiltersSchema>;
