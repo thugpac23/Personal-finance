@@ -17,10 +17,10 @@ export const POST = (req: Request) =>
   withAuth<Goal>(async (userId) => {
     const input = goalSchema.parse(await req.json());
     const [row] = await sql`
-      INSERT INTO goals (user_id, name, target_amount, target_date, icon, color, notes)
+      INSERT INTO goals (user_id, name, target_amount, target_date, icon, notes)
       VALUES (${userId}, ${input.name}, ${input.target_amount},
               ${input.target_date ?? null}, ${input.icon ?? "🎯"},
-              ${input.color ?? "#10B981"}, ${input.notes ?? null})
+              ${input.notes ?? null})
       RETURNING *
     ` as Goal[];
     return { data: row as Goal, error: null };
