@@ -1,4 +1,5 @@
 "use client";
+export const runtime = 'edge';
 
 import { useDashboard } from "@/lib/hooks/useFinance";
 import { StatCard } from "@/components/dashboard/StatCard";

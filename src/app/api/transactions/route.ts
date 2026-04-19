@@ -65,5 +65,5 @@ export const POST = async (req: Request) =>
       FROM transactions t LEFT JOIN categories c ON t.category_id = c.id
       WHERE t.id = ${(row as { id: string }).id}
     ` as Transaction[];
-    return { data: txn, error: null };
+    return { data: txn as Transaction, error: null };
   })(req);

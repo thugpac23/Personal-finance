@@ -11,7 +11,7 @@ const withCategory = async (id: string): Promise<RecurringTransaction> => {
     FROM recurring_transactions rt LEFT JOIN categories c ON rt.category_id = c.id
     WHERE rt.id = ${id}
   ` as RecurringTransaction[];
-  return row;
+  return row as RecurringTransaction;
 };
 
 export const GET = (req: Request) =>

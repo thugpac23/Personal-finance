@@ -1,3 +1,6 @@
+export const runtime = 'edge';
+export const dynamic = "force-dynamic";
+
 import { redirect } from "next/navigation";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import sql from "@/lib/db";

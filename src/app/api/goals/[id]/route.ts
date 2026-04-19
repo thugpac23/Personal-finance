@@ -22,7 +22,7 @@ export const PATCH = (req: Request, { params }: Ctx) =>
 
     const rows = await sql(`UPDATE goals SET ${sets} WHERE id = $1 AND user_id = $2 RETURNING *`, [params.id, userId, ...vals]) as Goal[];
     if (!rows.length) return { data: null, error: { message: "Not found" } };
-    return { data: rows[0], error: null };
+    return { data: rows[0] as Goal, error: null };
   })(req);
 
 export const DELETE = (req: Request, { params }: Ctx) =>
