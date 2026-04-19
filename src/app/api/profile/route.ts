@@ -24,5 +24,5 @@ export const PATCH = (req: Request) =>
       WHERE id = ${userId}
       RETURNING *
     ` as Profile[];
-    return { data: updated, error: null };
+    return { data: updated as Profile, error: null };
   })(req);
