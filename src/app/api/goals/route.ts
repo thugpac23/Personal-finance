@@ -23,5 +23,5 @@ export const POST = (req: Request) =>
               ${input.color ?? "#10B981"}, ${input.notes ?? null})
       RETURNING *
     ` as Goal[];
-    return { data: row, error: null };
+    return { data: row as Goal, error: null };
   })(req);

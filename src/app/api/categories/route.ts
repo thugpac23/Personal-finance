@@ -23,5 +23,5 @@ export const POST = (req: Request) =>
       VALUES (${userId}, ${input.name}, ${input.type}, ${input.icon ?? "📦"}, ${input.color ?? "#6B7280"}, false)
       RETURNING *
     ` as Category[];
-    return { data: row, error: null };
+    return { data: row as Category, error: null };
   })(req);
