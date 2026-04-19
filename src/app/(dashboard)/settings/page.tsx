@@ -1,42 +1,45 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
+import { useUser } from "@clerk/nextjs";
 import { toast } from "sonner";
 import type { Profile } from "@/types";
 
 export default function SettingsPage() {
-  const supabase = createClient();
+  const { user } = useUser();
   const [profile, setProfile] = useState<Partial<Profile>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      const { data } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-      if (data) setProfile(data);
+      const res = await fetch("/api/profile");
+      if (res.ok) {
+        const { data } = await res.json() as { data: Profile };
+        setProfile(data);
+      }
       setLoading(false);
     };
     void load();
-  }, [supabase]);
+  }, []);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
 
-    const { error } = await supabase.from("profiles").update({
-      full_name: profile.full_name,
-      currency:  profile.currency,
-      locale:    profile.locale,
-      timezone:  profile.timezone,
-    }).eq("id", user.id);
+    const res = await fetch("/api/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        full_name: profile.full_name,
+        currency:  profile.currency,
+        locale:    profile.locale,
+        timezone:  profile.timezone,
+      }),
+    });
 
-    if (error) toast.error(error.message);
-    else toast.success("Settings saved");
+    if (res.ok) toast.success("Settings saved");
+    else toast.error("Failed to save settings");
     setSaving(false);
   };
 
@@ -59,8 +62,8 @@ export default function SettingsPage() {
           </div>
           <div>
             <label className="label">Email</label>
-            <input className="input bg-gray-50" value={profile.email ?? ""} disabled />
-            <p className="mt-1 text-xs text-gray-400">Email cannot be changed here.</p>
+            <input className="input bg-gray-50" value={user?.emailAddresses[0]?.emailAddress ?? ""} disabled />
+            <p className="mt-1 text-xs text-gray-400">Email is managed by your account provider.</p>
           </div>
           <div>
             <label className="label">Currency</label>

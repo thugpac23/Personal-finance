@@ -1,0 +1,23 @@
+INSERT INTO categories (name, icon, color, type, is_system, sort_order) VALUES
+  ('Salary',         '💼', '#34C759', 'income',  true, 1),
+  ('Freelance',      '💻', '#30D158', 'income',  true, 2),
+  ('Investment',     '📈', '#007AFF', 'income',  true, 3),
+  ('Rental Income',  '🏠', '#5AC8FA', 'income',  true, 4),
+  ('Cashback',       '💳', '#32ADE6', 'income',  true, 5),
+  ('Other Income',   '💰', '#8E8E93', 'income',  true, 6),
+  ('Housing',        '🏠', '#FF6B8A', 'expense', true, 1),
+  ('Food & Dining',  '🍽️', '#34C759', 'expense', true, 2),
+  ('Transport',      '🚗', '#FF9500', 'expense', true, 3),
+  ('Entertainment',  '🎭', '#AF52DE', 'expense', true, 4),
+  ('Shopping',       '🛍️', '#FF2D55', 'expense', true, 5),
+  ('Health',         '💊', '#FF3B30', 'expense', true, 6),
+  ('Education',      '📚', '#5B8AF5', 'expense', true, 7),
+  ('Travel',         '✈️', '#FFCC00', 'expense', true, 8),
+  ('Subscriptions',  '🔄', '#FF9F0A', 'expense', true, 9),
+  ('Personal Care',  '👤', '#32ADE6', 'expense', true, 10),
+  ('Child',          '👶', '#FF6B8A', 'expense', true, 11),
+  ('Savings',        '💰', '#30D158', 'expense', true, 12),
+  ('Investments',    '📊', '#007AFF', 'expense', true, 13),
+  ('Utilities',      '⚡', '#FF9500', 'expense', true, 14),
+  ('Other',          '📦', '#8E8E93', 'expense', true, 99)
+ON CONFLICT DO NOTHING;

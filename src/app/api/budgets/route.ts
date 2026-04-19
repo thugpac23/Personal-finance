@@ -1,23 +1,35 @@
 import { withAuth } from "@/lib/utils/api";
 import { budgetSchema } from "@/lib/validations";
-import { createClient } from "@/lib/supabase/server";
+import sql from "@/lib/db";
 import type { Budget } from "@/types";
+
+const withCategory = async (id: string): Promise<Budget> => {
+  const [row] = await sql`
+    SELECT b.*, json_build_object('id',c.id,'name',c.name,'icon',c.icon,'color',c.color,'type',c.type) as category
+    FROM budgets b LEFT JOIN categories c ON b.category_id = c.id
+    WHERE b.id = ${id}
+  ` as Budget[];
+  return row;
+};
 
 export const GET = (req: Request) =>
   withAuth<Budget[]>(async (userId) => {
-    const { data, error } = await createClient()
-      .from("budgets").select("*, category:categories(*)")
-      .eq("user_id", userId).order("created_at", { ascending: false });
-    if (error) return { data: null, error: { message: error.message } };
-    return { data: data as Budget[], error: null };
+    const rows = await sql`
+      SELECT b.*, json_build_object('id',c.id,'name',c.name,'icon',c.icon,'color',c.color,'type',c.type) as category
+      FROM budgets b LEFT JOIN categories c ON b.category_id = c.id
+      WHERE b.user_id = ${userId}
+      ORDER BY b.created_at DESC
+    ` as Budget[];
+    return { data: rows, error: null };
   })(req);
 
 export const POST = (req: Request) =>
   withAuth<Budget>(async (userId) => {
     const input = budgetSchema.parse(await req.json());
-    const { data, error } = await createClient()
-      .from("budgets").insert({ ...input, user_id: userId })
-      .select("*, category:categories(*)").single();
-    if (error) return { data: null, error: { message: error.message } };
-    return { data: data as Budget, error: null };
+    const [row] = await sql`
+      INSERT INTO budgets (user_id, category_id, amount, period)
+      VALUES (${userId}, ${input.category_id}, ${input.amount}, ${input.period})
+      RETURNING id
+    `;
+    return { data: await withCategory((row as { id: string }).id), error: null };
   })(req);

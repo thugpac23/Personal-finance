@@ -1,24 +1,25 @@
 import { withAuth } from "@/lib/utils/api";
 import { categorySchema } from "@/lib/validations";
-import { createClient } from "@/lib/supabase/server";
+import sql from "@/lib/db";
 import type { Category } from "@/types";
 
 export const GET = (req: Request) =>
   withAuth<Category[]>(async (userId) => {
-    const { data, error } = await createClient()
-      .from("categories").select("*")
-      .or(`user_id.is.null,user_id.eq.${userId}`)
-      .order("sort_order").order("name");
-    if (error) return { data: null, error: { message: error.message } };
-    return { data: data as Category[], error: null };
+    const rows = await sql`
+      SELECT * FROM categories
+      WHERE user_id IS NULL OR user_id = ${userId}
+      ORDER BY sort_order ASC, name ASC
+    ` as Category[];
+    return { data: rows, error: null };
   })(req);
 
 export const POST = (req: Request) =>
   withAuth<Category>(async (userId) => {
     const input = categorySchema.parse(await req.json());
-    const { data, error } = await createClient()
-      .from("categories").insert({ ...input, user_id: userId, is_system: false })
-      .select("*").single();
-    if (error) return { data: null, error: { message: error.message } };
-    return { data: data as Category, error: null };
+    const [row] = await sql`
+      INSERT INTO categories (user_id, name, type, icon, color, is_system)
+      VALUES (${userId}, ${input.name}, ${input.type}, ${input.icon ?? "📦"}, ${input.color ?? "#6B7280"}, false)
+      RETURNING *
+    ` as Category[];
+    return { data: row, error: null };
   })(req);

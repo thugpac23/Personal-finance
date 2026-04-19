@@ -2,14 +2,14 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { useSignIn } from "@clerk/nextjs";
 import Link from "next/link";
 
 export default function LoginPage() {
+  const { isLoaded, signIn, setActive } = useSignIn();
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirectTo") ?? "/dashboard";
-  const supabase = createClient();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -18,19 +18,21 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLoaded) return;
     setLoading(true);
     setError(null);
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-
-    if (error) {
-      setError(error.message);
+    try {
+      const result = await signIn.create({ identifier: email, password });
+      if (result.status === "complete") {
+        await setActive({ session: result.createdSessionId });
+        router.push(redirectTo);
+      }
+    } catch (err: unknown) {
+      const clerkErr = err as { errors?: { message: string }[] };
+      setError(clerkErr.errors?.[0]?.message ?? "Sign in failed. Please try again.");
       setLoading(false);
-      return;
     }
-
-    router.push(redirectTo);
-    router.refresh();
   };
 
   return (
@@ -66,7 +68,7 @@ export default function LoginPage() {
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>
             )}
 
-            <button type="submit" disabled={loading} className="btn-primary w-full justify-center">
+            <button type="submit" disabled={loading || !isLoaded} className="btn-primary w-full justify-center">
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>

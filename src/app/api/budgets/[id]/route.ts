@@ -1,12 +1,11 @@
 import { withAuth } from "@/lib/utils/api";
-import { createClient } from "@/lib/supabase/server";
+import sql from "@/lib/db";
 
 type Ctx = { params: { id: string } };
 
 export const DELETE = (req: Request, { params }: Ctx) =>
   withAuth<{ id: string }>(async (userId) => {
-    const { error } = await createClient()
-      .from("budgets").delete().eq("id", params.id).eq("user_id", userId);
-    if (error) return { data: null, error: { message: error.message } };
+    const rows = await sql`DELETE FROM budgets WHERE id = ${params.id} AND user_id = ${userId} RETURNING id`;
+    if (!rows.length) return { data: null, error: { message: "Not found" } };
     return { data: { id: params.id }, error: null };
   })(req);

@@ -1,43 +1,67 @@
 import { withAuth } from "@/lib/utils/api";
 import { transactionSchema, transactionFiltersSchema } from "@/lib/validations";
-import { createClient } from "@/lib/supabase/server";
+import sql from "@/lib/db";
 import type { PaginatedResponse, Transaction } from "@/types";
 
 export const GET = async (req: Request) =>
   withAuth<PaginatedResponse<Transaction>>(async (userId) => {
     const params = Object.fromEntries(new URL(req.url).searchParams);
     const filters = transactionFiltersSchema.parse(params);
-    const supabase = createClient();
-    const from = (filters.page - 1) * filters.pageSize;
 
-    let q = supabase
-      .from("transactions")
-      .select("*, category:categories(*)", { count: "exact" })
-      .eq("user_id", userId)
-      .range(from, from + filters.pageSize - 1);
+    const conds: string[] = ["t.user_id = $1"];
+    const filterArgs: unknown[] = [userId];
 
-    if (filters.type)        q = q.eq("type", filters.type);
-    if (filters.category_id) q = q.eq("category_id", filters.category_id);
-    if (filters.date_from)   q = q.gte("date", filters.date_from);
-    if (filters.date_to)     q = q.lte("date", filters.date_to);
-    if (filters.search)      q = q.ilike("description", `%${filters.search}%`);
+    const addFilter = (cond: string, val: unknown) => {
+      filterArgs.push(val);
+      conds.push(cond.replace("?", `$${filterArgs.length}`));
+    };
 
-    const [col, dir] = filters.sort.split("_") as [string, "asc" | "desc"];
-    q = q.order(col === "date" ? "date" : "amount", { ascending: dir === "asc" });
+    if (filters.type)        addFilter("t.type = ?",                   filters.type);
+    if (filters.category_id) addFilter("t.category_id = ?",            filters.category_id);
+    if (filters.date_from)   addFilter("t.date >= ?",                  filters.date_from);
+    if (filters.date_to)     addFilter("t.date <= ?",                  filters.date_to);
+    if (filters.search)      addFilter("t.description ILIKE ?",        `%${filters.search}%`);
 
-    const { data, count, error } = await q;
-    if (error) return { data: null, error: { message: error.message } };
+    const where = conds.join(" AND ");
+    const [sortCol, sortDir] = filters.sort.split("_") as [string, string];
+    const orderCol  = sortCol === "date" ? "t.date" : "t.amount";
+    const orderDir  = sortDir === "asc"  ? "ASC"    : "DESC";
+    const from      = (filters.page - 1) * filters.pageSize;
 
-    return { data: { data: data as Transaction[], count: count ?? 0, page: filters.page, pageSize: filters.pageSize, hasMore: (count ?? 0) > filters.page * filters.pageSize }, error: null };
+    const [{ count }] = await sql(`SELECT COUNT(*)::int as count FROM transactions t WHERE ${where}`, filterArgs) as [{ count: number }];
+
+    const queryArgs = [...filterArgs, filters.pageSize, from];
+    const n = filterArgs.length;
+    const rows = await sql(
+      `SELECT t.*,
+         json_build_object('id',c.id,'name',c.name,'icon',c.icon,'color',c.color,'type',c.type,'is_system',c.is_system) as category
+       FROM transactions t
+       LEFT JOIN categories c ON t.category_id = c.id
+       WHERE ${where}
+       ORDER BY ${orderCol} ${orderDir}
+       LIMIT $${n + 1} OFFSET $${n + 2}`,
+      queryArgs
+    ) as Transaction[];
+
+    return {
+      data: { data: rows, count, page: filters.page, pageSize: filters.pageSize, hasMore: count > filters.page * filters.pageSize },
+      error: null,
+    };
   })(req);
 
 export const POST = async (req: Request) =>
   withAuth<Transaction>(async (userId) => {
     const input = transactionSchema.parse(await req.json());
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("transactions").insert({ ...input, user_id: userId })
-      .select("*, category:categories(*)").single();
-    if (error) return { data: null, error: { message: error.message } };
-    return { data: data as Transaction, error: null };
+    const [row] = await sql`
+      INSERT INTO transactions (user_id, category_id, type, amount, currency, description, date, notes)
+      VALUES (${userId}, ${input.category_id ?? null}, ${input.type}, ${input.amount},
+              ${input.currency ?? "EUR"}, ${input.description}, ${input.date}, ${input.notes ?? null})
+      RETURNING *
+    `;
+    const [txn] = await sql`
+      SELECT t.*, json_build_object('id',c.id,'name',c.name,'icon',c.icon,'color',c.color,'type',c.type) as category
+      FROM transactions t LEFT JOIN categories c ON t.category_id = c.id
+      WHERE t.id = ${(row as { id: string }).id}
+    ` as Transaction[];
+    return { data: txn, error: null };
   })(req);

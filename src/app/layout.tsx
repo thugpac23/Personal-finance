@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { ClerkProvider } from "@clerk/nextjs";
 import { Providers } from "@/components/layout/Providers";
 import "./globals.css";
 
@@ -13,13 +14,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body>
-        <Providers>
-          {children}
-          <Toaster richColors position="bottom-right" />
-        </Providers>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="en" className={inter.variable}>
+        <body>
+          <Providers>
+            {children}
+            <Toaster richColors position="bottom-right" />
+          </Providers>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }

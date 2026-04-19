@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useClerk } from "@clerk/nextjs";
 import { LayoutDashboard, ArrowLeftRight, PiggyBank, BarChart2, RefreshCw, Target, Settings, LogOut } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
 const NAV = [
@@ -19,12 +19,9 @@ const NAV = [
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const supabase = createClient();
+  const { signOut } = useClerk();
 
-  const signOut = async () => {
-    await supabase.auth.signOut();
-    router.push("/auth/login");
-  };
+  const handleSignOut = () => signOut(() => router.push("/auth/login"));
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-gray-200 bg-white">
@@ -49,7 +46,7 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-gray-200 p-3">
-        <button onClick={() => void signOut()}
+        <button onClick={() => void handleSignOut()}
           className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-600 transition-colors hover:bg-red-50 hover:text-red-600">
           <LogOut className="h-4 w-4 shrink-0" />
           Sign out

@@ -1,0 +1,90 @@
+name: CI / Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality:
+    name: Type-check & Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm run lint
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm test
+
+  migrate:
+    name: Neon Migrations
+    runs-on: ubuntu-latest
+    needs: quality
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run migrations
+        run: psql "${{ secrets.DATABASE_URL }}" -f neon/migrations/001_initial_schema.sql
+        env:
+          PGPASSWORD: ignored   # psql uses the URL directly
+
+  deploy-netlify:
+    name: Deploy → Netlify
+    runs-on: ubuntu-latest
+    needs: [quality, test, migrate]
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          CLERK_SECRET_KEY:                  ${{ secrets.CLERK_SECRET_KEY }}
+          DATABASE_URL:                      ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_APP_URL:               ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          WORKER_SECRET:                     ${{ secrets.WORKER_SECRET }}
+          NEXT_PUBLIC_CLERK_SIGN_IN_URL:     /auth/login
+          NEXT_PUBLIC_CLERK_SIGN_UP_URL:     /auth/register
+          NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL: /dashboard
+          NEXT_PUBLIC_CLERK_AFTER_SIGN_UP_URL: /dashboard
+      - name: Deploy to Netlify
+        run: npx netlify-cli deploy --prod --dir .next --site ${{ secrets.NETLIFY_SITE_ID }} --auth ${{ secrets.NETLIFY_AUTH_TOKEN }}
+
+  deploy-render-worker:
+    name: Deploy → Render Worker
+    runs-on: ubuntu-latest
+    needs: deploy-netlify
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Trigger Render deploy
+        run: curl -fsSX POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+
+  smoke:
+    name: Smoke Test
+    runs-on: ubuntu-latest
+    needs: deploy-netlify
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Health check (5 retries)
+        run: |
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/health")
+            [ "$STATUS" = "200" ] && echo "✓ Health OK" && exit 0
+            echo "Attempt $i failed (HTTP $STATUS), waiting 15s..."
+            sleep 15
+          done
+          echo "Health check failed after 5 attempts" && exit 1
