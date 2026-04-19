@@ -1,0 +1,17 @@
+name: Process Recurring Transactions
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # Daily at 06:00 UTC
+  workflow_dispatch:        # Allow manual trigger from GitHub UI
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger recurring transactions
+        run: |
+          curl -fsS -X POST \
+            -H "x-worker-secret: ${{ secrets.WORKER_SECRET }}" \
+            -H "Content-Type: application/json" \
+            "${{ secrets.NEXT_PUBLIC_APP_URL }}/api/recurring/process"
