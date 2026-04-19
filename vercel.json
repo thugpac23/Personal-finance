@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "npx @cloudflare/next-on-pages",
+  "buildCommand": "next build",
   "installCommand": "bun install",
   "regions": ["fra1"],
   "headers": [
