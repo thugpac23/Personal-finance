@@ -1,0 +1,298 @@
+# SpendWise — Claude Code Briefing
+
+> **Read this file at the start of every Claude Code session.**
+> It contains the full architecture, file map, deployment flow, and what still needs doing.
+
+---
+
+## What This Is
+
+A personal finance web app for Мартин. Tracks income, expenses, budgets, recurring
+transactions, and savings goals. Currency is **EUR** throughout (converted from BGN
+at the fixed official rate of 1 EUR = 1.95583 BGN).
+
+---
+
+## Stack
+
+| Layer            | Technology                                 |
+|------------------|--------------------------------------------|
+| Frontend         | Next.js 14 App Router — hosted on Vercel   |
+| Database + Auth  | Supabase (PostgreSQL + RLS)                |
+| Background jobs  | Render (Node.js worker, `src/jobs/worker.ts`) |
+| Version control  | GitHub                                     |
+| CI/CD            | GitHub Actions (`.github/workflows/`)      |
+| Forms            | react-hook-form + Zod                      |
+| Data fetching    | TanStack React Query                       |
+| Charts           | Recharts                                   |
+| Styling          | Tailwind CSS                               |
+| Toasts           | Sonner                                     |
+
+---
+
+## Complete File Map
+
+```
+spendwise/
+├── .github/workflows/
+│   ├── ci.yml          ← main pipeline: quality → test → migrate → deploy → smoke
+│   ├── preview.yml     ← PR preview deployments with URL comment
+│   └── deps.yml        ← weekly automated dependency update PRs
+│
+├── supabase/
+│   ├── config.toml
+│   ├── migrations/001_initial_schema.sql   ← full schema, RLS, triggers, pg_cron
+│   └── seed/categories.sql                ← 21 system categories
+│
+├── src/
+│   ├── middleware.ts          ← auth guard + session refresh on every request
+│   │
+│   ├── app/
+│   │   ├── layout.tsx         ← root layout with Providers + Toaster
+│   │   ├── page.tsx           ← redirects / → /dashboard
+│   │   ├── globals.css        ← Tailwind + .card / .btn-primary / .input utilities
+│   │   │
+│   │   ├── auth/
+│   │   │   ├── login/page.tsx
+│   │   │   ├── register/page.tsx
+│   │   │   ├── reset-password/page.tsx
+│   │   │   └── callback/route.ts   ← OAuth + magic link handler
+│   │   │
+│   │   ├── (dashboard)/       ← protected route group (layout checks auth)
+│   │   │   ├── layout.tsx
+│   │   │   ├── dashboard/page.tsx
+│   │   │   ├── transactions/page.tsx
+│   │   │   ├── budgets/page.tsx
+│   │   │   ├── analytics/page.tsx
+│   │   │   ├── recurring/page.tsx
+│   │   │   ├── goals/page.tsx
+│   │   │   └── settings/page.tsx
+│   │   │
+│   │   └── api/
+│   │       ├── health/route.ts              ← GET → {ok:true} used by smoke test
+│   │       ├── analytics/route.ts           ← full dashboard data in one call
+│   │       ├── transactions/route.ts        ← GET (paginated+filtered), POST
+│   │       ├── transactions/[id]/route.ts   ← GET, PATCH, DELETE
+│   │       ├── budgets/route.ts             ← GET, POST
+│   │       ├── budgets/[id]/route.ts        ← DELETE
+│   │       ├── categories/route.ts          ← GET, POST
+│   │       ├── goals/route.ts               ← GET, POST
+│   │       ├── goals/[id]/route.ts          ← PATCH, DELETE
+│   │       ├── recurring/route.ts           ← GET, POST
+│   │       ├── recurring/[id]/route.ts      ← DELETE
+│   │       └── recurring/process/route.ts   ← POST (worker only, needs x-worker-secret)
+│   │
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── Providers.tsx     ← React Query provider
+│   │   │   ├── Sidebar.tsx       ← nav links + sign out
+│   │   │   └── TopBar.tsx        ← currency display + avatar
+│   │   ├── dashboard/
+│   │   │   ├── StatCard.tsx
+│   │   │   ├── RecentTransactions.tsx
+│   │   │   ├── BudgetList.tsx
+│   │   │   └── GoalCards.tsx
+│   │   ├── charts/
+│   │   │   └── SpendingChart.tsx   ← SpendingChart (area) + CategoryDonut (pie)
+│   │   └── forms/
+│   │       └── TransactionModal.tsx  ← add/edit modal with validation
+│   │
+│   ├── lib/
+│   │   ├── supabase/
+│   │   │   ├── client.ts    ← browser singleton (anon key, RLS enforced)
+│   │   │   └── server.ts    ← server client + createAdminClient (service role)
+│   │   ├── hooks/
+│   │   │   └── useFinance.ts  ← all React Query hooks + mutations
+│   │   ├── utils/
+│   │   │   ├── index.ts     ← cn(), formatCurrency(), toMonthly()
+│   │   │   └── api.ts       ← withAuth() wrapper, verifyWorkerSecret()
+│   │   └── validations/
+│   │       └── index.ts     ← Zod schemas for all inputs
+│   │
+│   ├── types/
+│   │   ├── index.ts         ← all domain types (Transaction, Budget, Goal, etc.)
+│   │   └── supabase.ts      ← auto-generated by CI after each migration
+│   │
+│   └── jobs/
+│       └── worker.ts        ← Render worker, cron: process recurring at 06:00 UTC
+│
+├── render.yaml              ← Render worker declared as infrastructure-as-code
+├── vercel.json
+├── next.config.ts
+├── tailwind.config.ts
+├── tsconfig.json
+├── package.json
+└── .env.example
+```
+
+---
+
+## Database Schema (5 tables)
+
+```
+profiles               — extends auth.users, auto-created on signup via trigger
+categories             — system defaults (user_id NULL) + user custom categories
+transactions           — every income/expense record
+recurring_transactions — rules that auto-generate transactions daily
+budgets                — spending limits per category per period
+goals                  — savings targets with progress tracking
+```
+
+**Key automations inside Supabase:**
+- `handle_new_user()` trigger — creates profile row on every new signup
+- `set_updated_at()` trigger — updates `updated_at` on all tables
+- `mv_monthly_summary` materialized view — refreshed nightly at 02:00 UTC via `pg_cron`
+- `get_budget_utilization(user_id, month)` SQL function — used by analytics API
+- All tables have RLS enabled — users only see their own data
+
+---
+
+## CI/CD Flow (fully automatic after one-time setup)
+
+Every `git push` to `main` runs these steps **in order**:
+
+```
+1. Type-check (tsc --noEmit)
+2. Lint (next lint)
+3. Unit tests (vitest)
+4. supabase db push          → applies new migrations to production DB
+5. supabase gen types        → regenerates src/types/supabase.ts, commits it back
+6. vercel deploy --prod      → frontend live on Vercel
+7. curl Render deploy hook   → worker redeployed on Render
+8. curl /api/health          → smoke test (retries 5×, 15s apart)
+```
+
+Pull requests get a live preview URL posted as a comment automatically.
+Dependencies auto-update every Monday via a draft PR.
+
+---
+
+## One-Time Setup (do once, never again)
+
+### 1. Push to GitHub
+```bash
+git init
+git add .
+git commit -m "feat: initial SpendWise"
+git remote add origin https://github.com/YOUR_USERNAME/spendwise.git
+git push -u origin main
+```
+
+### 2. Supabase
+1. Create project at supabase.com
+2. Run migrations once manually:
+```bash
+npm install -g supabase
+supabase login
+supabase link --project-ref YOUR_PROJECT_REF
+supabase db push
+# seed categories:
+supabase db execute --file supabase/seed/categories.sql
+```
+3. Note: **project ref**, **anon key**, **service role key**, **JWT secret**, **DB password**
+
+### 3. Vercel
+1. Import GitHub repo at vercel.com
+2. Add all env vars (see `.env.example`)
+3. Note: **org ID**, **project ID**, **access token**
+
+### 4. Render
+1. New → Background Worker → connect GitHub repo
+2. Render reads `render.yaml` automatically
+3. Add env vars in Render dashboard
+4. Note: **deploy hook URL** (from service settings)
+
+### 5. GitHub Secrets
+Repo → Settings → Secrets and Variables → Actions:
+
+```
+SUPABASE_PROJECT_REF
+SUPABASE_ACCESS_TOKEN
+SUPABASE_DB_PASSWORD
+VERCEL_TOKEN
+VERCEL_ORG_ID
+VERCEL_PROJECT_ID
+VERCEL_APP_URL          (e.g. spendwise.vercel.app — no https://)
+RENDER_DEPLOY_HOOK_URL
+```
+
+### 6. Verify
+Push any change to `main`. Watch Actions tab — all 8 steps should go green.
+After that, **every push deploys itself forever.**
+
+---
+
+## Environment Variables
+
+Copy `.env.example` → `.env.local` for local development.
+
+### Vercel (production env vars)
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_JWT_SECRET
+WORKER_SECRET               ← random string, must match Render
+NEXT_PUBLIC_APP_URL         ← https://your-app.vercel.app
+RESEND_API_KEY              ← optional, for email notifications
+EMAIL_FROM                  ← optional
+NEXT_PUBLIC_SENTRY_DSN      ← optional
+SENTRY_AUTH_TOKEN           ← optional
+```
+
+### Render (worker env vars)
+```
+NEXT_PUBLIC_APP_URL         ← same Vercel URL
+WORKER_SECRET               ← same as Vercel
+NEXT_PUBLIC_SUPABASE_URL
+SUPABASE_SERVICE_ROLE_KEY
+```
+
+---
+
+## Key Patterns (follow these when adding features)
+
+### New API route
+Copy the pattern from any existing route. Always use `withAuth()`:
+```ts
+export const GET = (req: Request) =>
+  withAuth<YourType>(async (userId) => {
+    const supabase = createClient();
+    const { data, error } = await supabase.from("table")...
+    if (error) return { data: null, error: { message: error.message } };
+    return { data, error: null };
+  })(req);
+```
+
+### New React Query hook
+Add to `src/lib/hooks/useFinance.ts`. Follow the existing pattern:
+- query key in `queryKeys` object
+- `apiFetch<T>()` for all HTTP calls
+- invalidate related queries in `onSuccess`
+
+### New page
+Add to `src/app/(dashboard)/your-page/page.tsx`.
+Use `"use client"` if it needs state/hooks.
+Import data via hooks from `useFinance.ts`.
+
+### New migration
+Add `supabase/migrations/00X_description.sql`.
+CI runs `supabase db push` automatically on next push to main.
+
+---
+
+## Working With Claude Code
+
+Start from project root:
+```bash
+cd spendwise
+claude
+```
+
+Useful session starters:
+- *"Read CLAUDE.md then run npm run type-check and fix all errors"*
+- *"Add a new page for [feature] following the existing patterns in CLAUDE.md"*
+- *"Run git add . && git commit -m 'feat: ...' && git push"*
+- *"Check if there are any TODO items or incomplete features"*
+
+Claude Code has full terminal access — it can run builds, commits, and pushes directly.
