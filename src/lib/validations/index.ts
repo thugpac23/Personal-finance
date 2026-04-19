@@ -40,6 +40,13 @@ export const goalSchema = z.object({
   notes:         z.string().max(1000).optional(),
 });
 
+export const categorySchema = z.object({
+  name:  z.string().min(1).max(100),
+  type:  z.enum(["income", "expense"]),
+  icon:  z.string().max(10).optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
+});
+
 export const profileUpdateSchema = z.object({
   full_name: z.string().min(1).max(100).optional(),
   currency:  z.string().length(3).optional(),
@@ -63,4 +70,5 @@ export type RecurringInput        = z.infer<typeof recurringSchema>;
 export type BudgetInput           = z.infer<typeof budgetSchema>;
 export type GoalInput             = z.infer<typeof goalSchema>;
 export type ProfileUpdateInput    = z.infer<typeof profileUpdateSchema>;
+export type CategoryInput            = z.infer<typeof categorySchema>;
 export type TransactionFiltersInput = z.infer<typeof transactionFiltersSchema>;

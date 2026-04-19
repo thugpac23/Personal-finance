@@ -11,7 +11,7 @@ const withCategory = async (id: string): Promise<Budget> => {
     FROM budgets b LEFT JOIN categories c ON b.category_id = c.id
     WHERE b.id = ${id}
   ` as Budget[];
-  return row;
+  return row as Budget;
 };
 
 export const GET = (req: Request) =>
