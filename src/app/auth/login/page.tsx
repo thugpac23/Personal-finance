@@ -2,15 +2,11 @@
 export const runtime = 'edge';
 
 import { useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
 import { useSignIn } from "@clerk/nextjs";
 import Link from "next/link";
 
 export default function LoginPage() {
   const { isLoaded, signIn, setActive } = useSignIn();
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirectTo = searchParams.get("redirectTo") ?? "/dashboard";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,15 +15,19 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isLoaded) return;
+    if (!isLoaded || !signIn) return;
     setLoading(true);
     setError(null);
 
     try {
       const result = await signIn.create({ identifier: email, password });
+
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
         window.location.href = "/dashboard";
+      } else {
+        setError(`Sign-in requires additional step: ${result.status}. Please contact support.`);
+        setLoading(false);
       }
     } catch (err: unknown) {
       const clerkErr = err as { errors?: { message: string }[] };
