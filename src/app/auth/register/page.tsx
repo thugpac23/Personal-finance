@@ -52,7 +52,7 @@ export default function RegisterPage() {
       const result = await signUp.attemptEmailAddressVerification({ code });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        router.push("/dashboard");
+        window.location.href = "/dashboard";
       }
     } catch (err: unknown) {
       const clerkErr = err as { errors?: { message: string }[] };

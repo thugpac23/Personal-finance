@@ -27,7 +27,7 @@ export default function LoginPage() {
       const result = await signIn.create({ identifier: email, password });
       if (result.status === "complete") {
         await setActive({ session: result.createdSessionId });
-        router.push(redirectTo);
+        window.location.href = "/dashboard";
       }
     } catch (err: unknown) {
       const clerkErr = err as { errors?: { message: string }[] };
